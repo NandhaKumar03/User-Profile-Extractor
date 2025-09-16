@@ -45,8 +45,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 # ---------- Configuration (tweak these if you change model) ----------
-DEFAULT_MODEL = "llama-3.1-8b-instant"
+#DEFAULT_MODEL = "llama-3.1-8b-instant"
 #DEFAULT_MODEL = "deepseek-r1-distill-llama-70b"
+DEFAULT_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "gsk_YOUR_KEY_HERE")  # replace if you must hardcode
 # Model token capacity (approx). For llama-3.1-8b-instant your logs showed 6000 tokens limit -> use 6000
 MODEL_TOKEN_LIMIT = 6000
