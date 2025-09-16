@@ -14,11 +14,14 @@ export type Profile = {
   source?: string
 }
 
-const SocialIcon = ({ type }: { type: string }) => {
-  const t = type.toLowerCase()
-  if (t.includes("github")) return <Github className="h-4 w-4" aria-hidden />
-  if (t.includes("linkedin")) return <Linkedin className="h-4 w-4" aria-hidden />
-  if (t.includes("twitter") || t.includes("x")) return <Twitter className="h-4 w-4" aria-hidden />
+const SocialIcon = ({ type }: { type: string | null | undefined }) => {
+  if (!type) {
+    return null; // Or a default icon, or handle as appropriate
+  }
+  const t = type.toLowerCase();
+  if (t.includes("github")) return <Github className="h-4 w-4" aria-hidden />;
+  if (t.includes("linkedin")) return <Linkedin className="h-4 w-4" aria-hidden />;
+  if (t.includes("twitter") || t.includes("x")) return <Twitter className="h-4 w-4" aria-hidden />;
   if (t.includes("website") || t.includes("site") || t.includes("web")) return <Globe className="h-4 w-4" aria-hidden />
   return <LinkIcon className="h-4 w-4" aria-hidden />
 }

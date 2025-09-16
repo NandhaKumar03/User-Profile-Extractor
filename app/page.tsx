@@ -30,13 +30,35 @@ const postFetcher = async (key: string): Promise<ApiResponse> => {
   // key looks like /swr/scrape?u=encodedUrl
   const u = new URL(key, typeof window !== "undefined" ? window.location.href : "http://localhost")
   const target = u.searchParams.get("u")
-  const res = await fetch("/api/scrape", {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
+  console.log("Fetching from API URL:", `${apiUrl}/api/scrape`);
+  console.log("Request body:", JSON.stringify({ url: target }));
+
+  const res = await fetch(`${apiUrl}/api/scrape`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url: target }),
-  })
-  return res.json()
-}
+  });
+
+  console.log("API Response Status:", res.status);
+  const responseText = await res.text();
+  console.log("API Response Text:", responseText);
+
+  if (!res.ok) {
+    let errorMsg = `API error: ${res.status} ${res.statusText}`;
+    try {
+      const errorJson = JSON.parse(responseText);
+      if (errorJson.detail) {
+        errorMsg = `API error: ${errorJson.detail}`;
+      }
+    } catch (e) {
+      // Not a JSON error, use generic message
+    }
+    throw new Error(errorMsg);
+  }
+
+  return JSON.parse(responseText);
+};
 
 export default function HomePage() {
   const [url, setUrl] = useState("")
@@ -45,6 +67,10 @@ export default function HomePage() {
   const { data, error, isValidating, mutate } = useSWR<ApiResponse>(
     submitted ? `/swr/scrape?u=${encodeURIComponent(submitted)}` : null,
     postFetcher,
+    {
+      revalidateOnFocus: false, // Disable revalidation on window focus
+      revalidateOnReconnect: false, // Disable revalidation on network reconnect
+    }
   )
 
   const onSubmit = (e: React.FormEvent) => {

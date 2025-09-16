@@ -13,6 +13,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, AnyUrl
 
+from fastapi.middleware.cors import CORSMiddleware # Added this line
+from dotenv import load_dotenv
+load_dotenv()
+
 # Optional playwright import
 try:
     from playwright.async_api import async_playwright
@@ -26,8 +30,23 @@ logger = logging.getLogger("profile-scraper-llm")
 
 app = FastAPI(title="Profile Scraper (LLM)", version="1.0")
 
+load_dotenv()
+
+origins = [
+    "http://localhost:3000",  # Your frontend's address
+    "http://127.0.0.1:3000",  # Another common address for localhost
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # ---------- Configuration (tweak these if you change model) ----------
-DEFAULT_MODEL = "llama-3.1-8b-instant"
+#DEFAULT_MODEL = "llama-3.1-8b-instant"
+DEFAULT_MODEL = "deepseek-r1-distill-llama-70b"
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "gsk_YOUR_KEY_HERE")  # replace if you must hardcode
 # Model token capacity (approx). For llama-3.1-8b-instant your logs showed 6000 tokens limit -> use 6000
 MODEL_TOKEN_LIMIT = 6000
@@ -229,7 +248,7 @@ async def call_groq_llm(prompt_text: str, model: str = DEFAULT_MODEL, max_tokens
     from groq import Groq
     full_system = FULL_SYSTEM
     def sync_call():
-        client = Groq(api_key=GROQ_API_KEY)
+        client = Groq(api_key=GROQ_API_KEY, max_retries=0) # Added max_retries=0
         completion = client.chat.completions.create(
             model=model,
             messages=[
@@ -480,6 +499,8 @@ async def api_scrape(payload: ScrapeRequest):
     all_profiles: List[Dict[str, Any]] = []
 
     for idx, part in enumerate(parts, start=1):
+        if idx > 2:  # Add this condition to limit to the first two parts
+            break
         prompt = (
             "Extract all person/user profiles from the following text. "
             "Return ONLY a single JSON object exactly matching this schema:\n\n"
@@ -571,7 +592,3 @@ async def api_scrape(payload: ScrapeRequest):
 @app.get("/")
 async def root():
     return {"message": "Profile Scraper LLM. POST /api/scrape with JSON {url}"}
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("profile_scraper_llm:app", host="0.0.0.0", port=8000, reload=False)
