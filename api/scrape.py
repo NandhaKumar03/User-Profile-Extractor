@@ -49,8 +49,8 @@ app.add_middleware(
 DEFAULT_MODEL = "deepseek-r1-distill-llama-70b"
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "gsk_YOUR_KEY_HERE")  # replace if you must hardcode
 # Model token capacity (approx). For llama-3.1-8b-instant your logs showed 6000 tokens limit -> use 6000
-MODEL_TOKEN_LIMIT = 6000
-MAX_COMPLETION_TOKENS = 1024   # tokens reserved for model completion
+MODEL_TOKEN_LIMIT = 3000
+MAX_COMPLETION_TOKENS = 500   # tokens reserved for model completion
 TOKEN_SAFETY_MARGIN = 200      # extra margin
 # chars per token heuristic (rough): use 4 chars per token (English average)
 CHARS_PER_TOKEN = 4
@@ -245,35 +245,41 @@ def extract_ordered_text_and_markers(html: str, base_url: str) -> str:
 
 # ---------- Groq LLM call ----------
 async def call_groq_llm(prompt_text: str, model: str = DEFAULT_MODEL, max_tokens: int = MAX_COMPLETION_TOKENS) -> str:
-    from groq import Groq
-    full_system = FULL_SYSTEM
-    def sync_call():
-        client = Groq(api_key=GROQ_API_KEY, max_retries=0) # Added max_retries=0
-        completion = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": full_system},
-                {"role": "user", "content": prompt_text},
-            ],
-            temperature=0.0,
-            max_completion_tokens=max_tokens,
-            top_p=1,
-            stream=False,
-        )
-        return completion
-    completion = await asyncio.to_thread(sync_call)
     try:
-        choice = completion.choices[0]
-        msg = getattr(choice, "message", None)
-        if msg:
-            reply = getattr(msg, "content", "") or ""
-        else:
-            reply = getattr(choice, "text", "") or str(choice)
-    except Exception:
-        reply = str(completion)
-    reply = (reply or "").strip()
-    logger.debug("LLM reply length=%s", len(reply))
-    return reply
+        from groq import Groq
+        full_system = FULL_SYSTEM
+        def sync_call():
+            client = Groq(api_key=GROQ_API_KEY, max_retries=0) # Added max_retries=0
+            completion = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": full_system},
+                    {"role": "user", "content": prompt_text},
+                ],
+                temperature=0.0,
+                max_completion_tokens=max_tokens,
+                top_p=1,
+                stream=False,
+            )
+            return completion
+        completion = await asyncio.to_thread(sync_call)
+        try:
+            choice = completion.choices[0]
+            msg = getattr(choice, "message", None)
+            if msg:
+                reply = getattr(msg, "content", "") or ""
+            else:
+                reply = getattr(choice, "text", "") or str(choice)
+        except Exception:
+            reply = str(completion)
+        reply = (reply or "").strip()
+        logger.debug("LLM reply length=%s", len(reply))
+        return reply
+    except groq.RateLimitError as e:
+        wait_time = float(e.response.headers.get('retry-after', 30))
+        logger.warning(f"Rate limited. Waiting {wait_time}s before retry")
+        await asyncio.sleep(wait_time)
+        return await call_groq_llm(prompt_text, model, max_tokens)  # Retry
 
 # ---------- Robust parsing & helpers ----------
 def fix_trailing_commas(s: str) -> str:
